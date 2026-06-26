@@ -1,31 +1,40 @@
-from flask import Flask, url_for, request
+import os
+import click
+from flask import Flask, current_app
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy.orm import DeclarativeBase
 
-app = Flask(__name__)
 
-@app.route("/olamundo/<usuario>/<int:idade>")
-def hello_world(usuario, idade):
-    return {
-        'Usuário' : usuario,
-        "Idade" : idade,
-    }
+class Base(DeclarativeBase):
+    pass
 
-@app.route("/bemvindo")
-def bem_vindo():
-    return {"message" : "Olá mundo!"}
+db = SQLAlchemy(model_class=Base)
 
-@app.route("/projects/")
-def projects():
-    return "The project page"
+@click.command("init-db")
+def init_db_command():
+    global db
+    with current_app.app_context():
+        db.create_all()
+    click.echo("Initialized the databse.")
 
-@app.route("/about", methods = ["GET", "POST"])
-def about():
-    if request.method == 'GET':
-        return "This is a GET"
+def create_app(test_config = None):
+    app = Flask(__name__, instance_relative_config=True)
+    app.config.from_mapping(
+        SECRET_KEY = "dev",
+        SQLALCHEMY_DATABASE_URI = "sqlite:///dio_bank.sqlite"
+    )
+
+    if test_config is None:
+        app.config.from_pyfile("config.py", silent = True)
     else:
-        return "This is a POST"
+        app.config.from_mapping(test_config)
 
-with app.test_request_context():
-    print(url_for('bem_vindo'))
-    print(url_for('projects'))
-    print(url_for('about', next="/"))
-    print(url_for('hello_world', usuario = "leonardo", idade = 21))
+    try:
+        os.makedirs(app.instance_path)
+    except OSError:
+        pass
+
+    app.cli.add_command(init_db_command)
+    db.init_app(app)
+
+    return app
