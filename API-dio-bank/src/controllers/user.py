@@ -8,7 +8,11 @@ app = Blueprint('user', __name__, url_prefix = '/users')
 
 def _create_user():
     data = request.json
-    user = User(username = data['username'])
+    user = User(
+        username = data['username'],
+        password = data['password'],
+        role_id = data['role_id']
+        )
     db.session.add(user)
     db.session.commit()
 
@@ -18,6 +22,10 @@ def _list_users():
     return [
         {"id": user.id,
          "username": user.username,
+         "role": {
+             "id": user.role.id,
+             "Name": user.role.name,
+         }
         }
         for user in users
     ]
@@ -25,11 +33,16 @@ def _list_users():
 @app.route('/', methods = ["GET", "POST"])
 @jwt_required()
 def list_or_create_user():
+    user_id = int(get_jwt_identity())
+    user = db.get_or_404(User, user_id)
+    if user.role.name != "admin":
+        return {"message": "User dont have access."}, HTTPStatus.UNAUTHORIZED
+    
     if request.method == "POST":
         _create_user()
         return {"message": "User created!"}, HTTPStatus.CREATED
     else:
-        return{"identity": get_jwt_identity(), "users": _list_users()}
+        return{"users": _list_users()}
     
 @app.route("/<int:user_id>")
 def get_user(user_id):
